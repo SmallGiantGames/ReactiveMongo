@@ -473,7 +473,7 @@ private object MacroImpl {
         alt.paramss match {
           case params :: ps if (ps.isEmpty || ps.headOption.flatMap(
             _.headOption).exists(_.isImplicit)
-          ) => conforms(params.map(_.typeSignature).zip(u))
+          ) => params.length == u.length && conforms(params.map(_.typeSignature).zip(u))
 
           case _ => {
             c.warning(c.enclosingPosition, s"""Constructor with multiple parameter lists is not supported: ${A.typeSymbol.name}${alt.typeSignature}""")
