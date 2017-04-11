@@ -38,6 +38,11 @@ class Macros extends Specification {
     def apply(seq: Seq[String]): OverloadedApply = OverloadedApply(seq mkString " ")
   }
 
+  case class OverloadedApply2(string: String, number: Int)
+  object OverloadedApply2 {
+    def apply(string: String) = new OverloadedApply2(string, 0)
+  }
+
   object Union {
     sealed trait UT
     case class UA(n: Int) extends UT
@@ -159,6 +164,14 @@ class Macros extends Specification {
       val doc1 = OverloadedApply("hello")
       val doc2 = OverloadedApply(List("hello", "world"))
       val f = Macros.handler[OverloadedApply]
+      roundtrip(doc1, f)
+      roundtrip(doc2, f)
+    }
+
+    "handle overloaded apply with different number of args correctly" in {
+      val doc1 = OverloadedApply2("hello")
+      val doc2 = OverloadedApply2("hello", 10)
+      val f = Macros.handler[OverloadedApply2]
       roundtrip(doc1, f)
       roundtrip(doc2, f)
     }
