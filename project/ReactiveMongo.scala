@@ -3,8 +3,8 @@ import sbt.Keys._
 import scala.language.postfixOps
 
 object BuildSettings {
-  val nextMajor = "0.12.1"
-  val buildVersion = nextMajor
+  val nextMajor = "0.12.2"
+  val buildVersion = nextMajor + "-SNAPSHOT"
 
   val filter = { (ms: Seq[(File, String)]) =>
     ms filter {
