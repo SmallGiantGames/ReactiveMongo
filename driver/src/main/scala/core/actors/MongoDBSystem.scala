@@ -147,21 +147,8 @@ trait MongoDBSystem extends Actor {
   nodeSetUpdated(s"Init(${_nodeSet.toShortString})", null, _nodeSet)
   // <-- monitor
 
-  @inline private def updateHistory(event: String): Unit = {
-    val time = System.currentTimeMillis()
-
-    @annotation.tailrec
-    def go(retry: Int): Unit = try { // compensate EvictionQueue safety
-      history.offer(time -> event)
-      ()
-    } catch {
-      case err: Exception if (retry > 0) => go(retry - 1)
-      case err: Exception =>
-        logger.warn(s"Fails to update history: $event", err)
-    }
-
-    go(3)
-  }
+  @inline private def updateHistory(event: String): Unit =
+    history.synchronized { history.add(System.currentTimeMillis() -> event); () }
 
   private[reactivemongo] def internalState() = new InternalState(
     history.toArray.foldLeft(Array.empty[StackTraceElement]) {
