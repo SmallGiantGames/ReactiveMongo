@@ -126,10 +126,9 @@ trait MongoDBSystem extends Actor {
 
   // history
   private lazy val historyMax = options.maxHistorySize
-  private lazy val history = EvictingQueue.create[(Long, String)](historyMax)
 
   private[reactivemongo] lazy val syncHistory =
-    Queues.synchronizedQueue(history)
+    Queues.synchronizedQueue(EvictingQueue.create[(Long, String)](historyMax))
 
   private type NodeSetHandler = (String, NodeSetInfo, NodeSet) => Unit
   private val nodeSetUpdated: NodeSetHandler =
@@ -158,7 +157,7 @@ trait MongoDBSystem extends Actor {
     syncHistory.offer(System.currentTimeMillis() -> event)
 
   private[reactivemongo] def internalState() = new InternalState(
-    history.toArray(Array.fill[(Long, String)](historyMax)(null)).
+    syncHistory.toArray(Array.fill[(Long, String)](historyMax)(null)).
       foldLeft(Array.empty[StackTraceElement]) {
         case (trace, null) => trace
 
