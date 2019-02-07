@@ -617,7 +617,7 @@ final class ChannelFactory private[reactivemongo] (
   private val timer = new HashedWheelTimer()
 
   def create(host: String = "localhost", port: Int = 27017, receiver: ActorRef): Channel = {
-    val channel = makeChannel(receiver)
+    val channel = makeChannel(host, port, receiver)
     logger.trace(s"[$supervisor/$connection] Created a new channel: $channel")
     channel
   }
@@ -630,7 +630,7 @@ final class ChannelFactory private[reactivemongo] (
     java.nio.ByteOrder.LITTLE_ENDIAN
   )
 
-  private def makePipeline(timeoutMS: Long, receiver: ActorRef): ChannelPipeline = {
+  private def makePipeline(timeoutMS: Long, host: String, port: Int, receiver: ActorRef): ChannelPipeline = {
     val idleHandler = new IdleStateHandler(
       timer, 0, 0, timeoutMS, TimeUnit.MILLISECONDS
     )
@@ -642,9 +642,15 @@ final class ChannelFactory private[reactivemongo] (
     if (options.sslEnabled) {
 
       val sslEng = {
-        val engine = sslContext.createSSLEngine()
+        val engine = sslContext.createSSLEngine(host, port)
         engine.setUseClientMode(true)
+        import javax.net.ssl.SNIHostName
+        import javax.net.ssl.SNIServerName
+        val params = engine.getSSLParameters()
+        params.setServerNames(java.util.Collections.singletonList[SNIServerName](new SNIHostName(host)))
+        engine.setSSLParameters(params)
         engine
+
       }
 
       val sslHandler =
@@ -704,9 +710,9 @@ final class ChannelFactory private[reactivemongo] (
     sslCtx
   }
 
-  private def makeChannel(receiver: ActorRef): Channel = {
+  private def makeChannel(host: String, port: Int, receiver: ActorRef): Channel = {
     val channel = channelFactory.newChannel(makePipeline(
-      options.maxIdleTimeMS.toLong, receiver
+      options.maxIdleTimeMS.toLong, host, port, receiver
     ))
     val config = channel.getConfig
 
