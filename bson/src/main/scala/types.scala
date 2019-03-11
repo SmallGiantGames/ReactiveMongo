@@ -381,8 +381,8 @@ object BSONObjectID {
   private val maxCounterValue = 16777216
   private val secureRandom = new java.security.SecureRandom()
   private val increment = new java.util.concurrent.atomic.AtomicInteger(secureRandom.nextInt(maxCounterValue))
-  private val randomVal1 = secureRandom.nextInt()
-  private val randomVal2 = secureRandom.nextInt()
+  private val randomVal1 = secureRandom.nextInt(0x01000000)
+  private val randomVal2 = secureRandom.nextInt(0x00008000)
 
   private def counter = (increment.getAndIncrement + maxCounterValue) % maxCounterValue
 
