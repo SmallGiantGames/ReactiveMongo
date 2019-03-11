@@ -379,62 +379,12 @@ class BSONObjectID private (private val raw: Array[Byte])
 
 object BSONObjectID {
   private val maxCounterValue = 16777216
-  private val increment = new java.util.concurrent.atomic.AtomicInteger(scala.util.Random.nextInt(maxCounterValue))
+  private val secureRandom = new java.security.SecureRandom()
+  private val increment = new java.util.concurrent.atomic.AtomicInteger(secureRandom.nextInt(maxCounterValue))
+  private val randomVal1 = secureRandom.nextInt()
+  private val randomVal2 = secureRandom.nextInt()
 
   private def counter = (increment.getAndIncrement + maxCounterValue) % maxCounterValue
-
-  /**
-   * The following implemtation of machineId work around openjdk limitations in
-   * version 6 and 7
-   *
-   * Openjdk fails to parse /proc/net/if_inet6 correctly to determine macaddress
-   * resulting in SocketException thrown.
-   *
-   * Please see:
-   * * https://github.com/openjdk-mirror/jdk7u-jdk/blob/feeaec0647609a1e6266f902de426f1201f77c55/src/solaris/native/java/net/NetworkInterface.c#L1130
-   * * http://lxr.free-electrons.com/source/net/ipv6/addrconf.c?v=3.11#L3442
-   * * http://lxr.free-electrons.com/source/include/linux/netdevice.h?v=3.11#L1130
-   * * http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=7078386
-   *
-   * and fix in openjdk8:
-   * * http://hg.openjdk.java.net/jdk8/tl/jdk/rev/b1814b3ea6d3
-   */
-
-  private val machineId = {
-    import java.net._
-    def p(n: String) = System.getProperty(n)
-    val validPlatform = Try {
-      val correctVersion = p("java.version").substring(0, 3).toFloat >= 1.8
-      val noIpv6 = p("java.net.preferIPv4Stack").toBoolean == true
-      val isLinux = p("os.name") == "Linux"
-
-      !isLinux || correctVersion || noIpv6
-    }.getOrElse(false)
-
-    // Check java policies
-    val permitted = {
-      val sec = System.getSecurityManager();
-      Try { sec.checkPermission(new NetPermission("getNetworkInformation")) }.toOption.map(_ => true).getOrElse(false);
-    }
-
-    if (validPlatform && permitted) {
-      val networkInterfacesEnum = NetworkInterface.getNetworkInterfaces
-      val networkInterfaces = scala.collection.JavaConverters.enumerationAsScalaIteratorConverter(networkInterfacesEnum).asScala
-      val ha = networkInterfaces.find(ha => Try(ha.getHardwareAddress).isSuccess && ha.getHardwareAddress != null && ha.getHardwareAddress.length == 6)
-        .map(_.getHardwareAddress)
-        .getOrElse(InetAddress.getLocalHost.getHostName.getBytes("UTF-8"))
-      Converters.md5(ha).take(3)
-    } else {
-      val threadId = Thread.currentThread.getId.toInt
-      val arr = new Array[Byte](3)
-
-      arr(0) = (threadId & 0xFF).toByte
-      arr(1) = (threadId >> 8 & 0xFF).toByte
-      arr(2) = (threadId >> 16 & 0xFF).toByte
-
-      arr
-    }
-  }
 
   /**
    * Constructs a BSON ObjectId element from a hexadecimal String representation.
@@ -492,15 +442,12 @@ object BSONObjectID {
     id(3) = (timestamp & 0xFF).toByte
 
     if (!fillOnlyTimestamp) {
-      // machine id, 3 first bytes of md5(macadress or hostname)
-      id(4) = machineId(0)
-      id(5) = machineId(1)
-      id(6) = machineId(2)
+      id(4) = (randomVal1 >> 16 & 0xFF).toByte
+      id(5) = (randomVal1 >> 8 & 0xFF).toByte
+      id(6) = (randomVal1 & 0xFF).toByte
 
-      // 2 bytes of the pid or thread id. Thread id in our case. Low endian
-      val threadId = Thread.currentThread.getId.toInt
-      id(7) = (threadId & 0xFF).toByte
-      id(8) = (threadId >> 8 & 0xFF).toByte
+      id(7) = (randomVal2 >> 8 & 0xFF).toByte
+      id(8) = (randomVal2 & 0xFF).toByte
 
       // 3 bytes of counter sequence, which start is randomized. Big endian
       val c = counter
