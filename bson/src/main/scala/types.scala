@@ -381,8 +381,11 @@ object BSONObjectID {
   private val maxCounterValue = 16777216
   private val secureRandom = new java.security.SecureRandom()
   private val increment = new java.util.concurrent.atomic.AtomicInteger(secureRandom.nextInt(maxCounterValue))
-  private val randomVal1 = secureRandom.nextInt(0x01000000)
-  private val randomVal2 = secureRandom.nextInt(0x00008000)
+  private val randomBytes = {
+    val bytes = new Array[Byte](5)
+    secureRandom.nextBytes(bytes)
+    bytes
+  }
 
   private def counter = (increment.getAndIncrement + maxCounterValue) % maxCounterValue
 
@@ -442,12 +445,11 @@ object BSONObjectID {
     id(3) = (timestamp & 0xFF).toByte
 
     if (!fillOnlyTimestamp) {
-      id(4) = (randomVal1 >> 16 & 0xFF).toByte
-      id(5) = (randomVal1 >> 8 & 0xFF).toByte
-      id(6) = (randomVal1 & 0xFF).toByte
-
-      id(7) = (randomVal2 >> 8 & 0xFF).toByte
-      id(8) = (randomVal2 & 0xFF).toByte
+      id(4) = randomBytes(0)
+      id(5) = randomBytes(1)
+      id(6) = randomBytes(2)
+      id(7) = randomBytes(3)
+      id(8) = randomBytes(4)
 
       // 3 bytes of counter sequence, which start is randomized. Big endian
       val c = counter
