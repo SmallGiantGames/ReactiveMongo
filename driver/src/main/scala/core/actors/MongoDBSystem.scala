@@ -150,14 +150,17 @@ trait MongoDBSystem extends Actor {
   @inline private def updateHistory(event: String): Unit =
     history.synchronized { history.add(System.currentTimeMillis() -> event); () }
 
-  private[reactivemongo] def internalState() = new InternalState(
-    history.toArray.foldLeft(Array.empty[StackTraceElement]) {
-      case (trace, (time, event)) => new StackTraceElement(
-        "reactivemongo", event.asInstanceOf[String],
-        s"<time:$time>", -1
-      ) +: trace
-    }
-  )
+  private[reactivemongo] def internalState() = {
+    val array = history.synchronized(history.toArray)
+    new InternalState(
+      array.foldLeft(Array.empty[StackTraceElement]) {
+        case (trace, (time, event)) => new StackTraceElement(
+          "reactivemongo", event.asInstanceOf[String],
+          s"<time:$time>", -1
+        ) +: trace
+      }
+    )
+  }
 
   private[reactivemongo] def getNodeSet = _nodeSet // For test purposes
 
@@ -536,8 +539,10 @@ trait MongoDBSystem extends Actor {
       logger.debug(s"[$lnm] RefreshAll Job running... Status: $statusInfo")
 
       context.system.scheduler.scheduleOnce(Duration.Zero) {
-        while (history.size > historyMax) { // compensate EvictionQueue safety
-          history.poll()
+        history.synchronized {
+          while (history.size > historyMax) { // compensate EvictionQueue safety
+            history.poll()
+          }
         }
       }
 
@@ -1072,7 +1077,7 @@ trait MongoDBSystem extends Actor {
             s"'${node.name}' [${node.status}] { ${nodeInfo(reqAuth, node)} }"
           }.mkString("; ")
 
-          new ChannelNotFound(s"Channel not found from the nodes: $details ($supervisor/$name); $history", true, internalState)
+          new ChannelNotFound(s"Channel not found from the nodes: $details ($supervisor/$name); ${history.synchronized(history.toString)}", true, internalState)
         }
 
         Failure(cause)
